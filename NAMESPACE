@@ -1,1 +1,3 @@
-exportPattern("^[[:alpha:]]+")
+export(build_gp_links)
+export(build_gp_links_wrapper)
+export(get_peregrine_file)
