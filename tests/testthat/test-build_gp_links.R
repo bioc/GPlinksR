@@ -40,16 +40,16 @@ test_that(
     "build_gp_links returns valid outputs for local example peaks and genes",
     {
         local_files <- .local_peregrine_files()
+        test_mart <- structure(list(host = "mirror"), class = "test_mart")
         testthat::local_mocked_bindings(
-            .map_genes_to_hgnc = function(gn) {
+            .map_genes_to_hgnc = function(gn, gene_map, mart) {
+                expect_null(gene_map)
+                expect_identical(mart, test_mart)
                 data.frame(
                     hgnc_symbol = "TP53",
                     hgnc_id = "HGNC:11998",
                     stringsAsFactors = FALSE
                 )
-            },
-            .get_peregrine_enhancer_coords_file = function() {
-                local_files$coords_file
             },
             .build_promoter_links = function(pk_gr, gn, edb) {
                 data.frame(
@@ -80,7 +80,9 @@ test_that(
         result <- build_gp_links(
             pk = test_peaks,
             gn = test_genes,
-            enh_file = local_files$enh_file
+            enh_file = local_files$enh_file,
+            enh_coords_file = local_files$coords_file,
+            mart = test_mart
         )
 
         expect_s3_class(result, "data.frame")
@@ -92,6 +94,44 @@ test_that(
         expect_true(any(result$Src == "enh" & result$Gene == "TP53"))
     }
 )
+
+
+test_that("build_gp_links accepts local gene and enhancer resources", {
+    local_files <- .local_peregrine_files()
+    gene_map <- data.frame(
+        hgnc_symbol = "TP53",
+        hgnc_id = "HGNC:11998"
+    )
+    testthat::local_mocked_bindings(
+        .build_promoter_links = function(pk_gr, gn, edb) {
+            data.frame(
+                Peak = character(),
+                Gene = character(),
+                Src = character()
+            )
+        },
+        .build_closest_links = function(pk_gr, gn, edb) {
+            data.frame(
+                Peak = character(),
+                Gene = character(),
+                Src = character()
+            )
+        },
+        .package = "GPlinksR"
+    )
+
+    result <- build_gp_links(
+        pk = "chr1:1000-1100",
+        gn = "TP53",
+        enh_file = local_files$enh_file,
+        enh_coords_file = local_files$coords_file,
+        gene_map = gene_map
+    )
+
+    expect_equal(result$Peak, "chr1:1000-1100")
+    expect_equal(result$Gene, "TP53")
+    expect_equal(result$Src, "enh")
+})
 
 
 # 2. Missing gene input (gn)
@@ -217,26 +257,182 @@ test_that("build_gp_links errors when enh_file does not exist", {
 })
 
 
+test_that("build_gp_links errors when enhancer coordinates do not exist", {
+    expect_error(
+        build_gp_links(
+            pk = "chr1:1000-2000",
+            gn = "TP53",
+            enh_coords_file = "not_a_real_file.tsv"
+        ),
+        "enh_coords_file.*does not exist"
+    )
+})
+
+
+test_that("build_gp_links validates a supplied gene map", {
+    expect_error(
+        build_gp_links(
+            pk = "chr1:1000-2000",
+            gn = "TP53",
+            gene_map = data.frame(symbol = "TP53", id = "HGNC:11998")
+        ),
+        "must contain columns"
+    )
+})
+
+
 # 11. Gene symbols cannot be mapped to HGNC
 
 test_that("build_gp_links errors when gene symbols cannot be mapped to HGNC", {
     local_files <- .local_peregrine_files()
-    testthat::local_mocked_bindings(
-        .map_genes_to_hgnc = function(gn) {
-            stop("No HGNC IDs found for the provided gene symbols.")
-        },
-        .get_peregrine_enhancer_coords_file = function() {
-            local_files$coords_file
-        },
-        .package = "GPlinksR"
-    )
 
     expect_error(
         build_gp_links(
             pk = "chr1:1000-2000",
             gn = "THISISNOTAREALGENE",
-            enh_file = local_files$enh_file
+            enh_file = local_files$enh_file,
+            enh_coords_file = local_files$coords_file,
+            gene_map = data.frame(
+                hgnc_symbol = "TP53",
+                hgnc_id = "HGNC:11998"
+            )
         ),
         "No HGNC IDs found"
     )
+})
+
+
+test_that("peak preparation keeps standard human chromosomes", {
+    prepare_peak_granges <- getFromNamespace(
+        ".prepare_peak_granges",
+        "GPlinksR"
+    )
+    peaks <- data.frame(
+        chr = c("chr1", "chr23", "chrUn_KI270442v1"),
+        start = c(100L, 200L, 300L),
+        end = c(150L, 250L, 350L)
+    )
+
+    result <- prepare_peak_granges(peaks)
+
+    expect_equal(as.character(GenomicRanges::seqnames(result)), "chr1")
+})
+
+
+test_that("seqlevel styles are aligned without external lookups", {
+    set_seqlevels_style <- getFromNamespace(
+        ".set_seqlevels_style",
+        "GPlinksR"
+    )
+    subject <- GenomicRanges::GRanges(
+        seqnames = c("1", "MT"),
+        ranges = IRanges::IRanges(start = c(1L, 1L), width = 10L)
+    )
+    query <- GenomicRanges::GRanges(
+        seqnames = c("chr1", "chrM"),
+        ranges = IRanges::IRanges(start = c(1L, 1L), width = 10L)
+    )
+
+    result <- set_seqlevels_style(subject, query)
+
+    expect_equal(GenomeInfoDb::seqlevels(result), c("chr1", "chrM"))
+})
+
+
+test_that("closest links assign every peak among the input genes", {
+    closest_links_from_tss <- getFromNamespace(
+        ".closest_links_from_tss",
+        "GPlinksR"
+    )
+    peaks <- GenomicRanges::GRanges(
+        seqnames = c("chr1", "chr1"),
+        ranges = IRanges::IRanges(start = c(110L, 10010L), width = 10L),
+        id = c("near_unselected", "near_selected")
+    )
+    tss <- GenomicRanges::GRanges(
+        seqnames = c("1", "1"),
+        ranges = IRanges::IRanges(start = c(100L, 10000L), width = 1L),
+        strand = "+",
+        symbol = c("UNSELECTED", "SELECTED")
+    )
+
+    result <- closest_links_from_tss(peaks, tss, gn = "SELECTED")
+
+    expect_equal(
+        result,
+        data.frame(
+            Peak = c("near_unselected", "near_selected"),
+            Gene = c("SELECTED", "SELECTED"),
+            Src = c("clo", "clo"),
+            stringsAsFactors = FALSE
+        )
+    )
+    expect_equal(nrow(result), length(peaks))
+})
+
+
+test_that("peak centers follow the paper midpoint definition", {
+    peak_center_ranges <- getFromNamespace(
+        ".peak_center_ranges",
+        "GPlinksR"
+    )
+    peaks <- GenomicRanges::GRanges(
+        seqnames = c("chr1", "chr1"),
+        ranges = IRanges::IRanges(
+            start = c(100L, 100L),
+            end = c(199L, 200L)
+        ),
+        id = c("even_width", "odd_width")
+    )
+
+    result <- peak_center_ranges(peaks)
+
+    expect_equal(IRanges::start(result), c(150L, 150L))
+    expect_equal(IRanges::width(result), c(1L, 1L))
+    expect_equal(result$id, peaks$id)
+})
+
+
+test_that("combined links retain every evidence source", {
+    combine_link_tables <- getFromNamespace(
+        ".combine_link_tables",
+        "GPlinksR"
+    )
+    link <- data.frame(Peak = "chr1:100-200", Gene = "GENE1")
+    enhancer <- transform(link, Src = "enh")
+    promoter <- transform(link, Src = "prom")
+    closest <- transform(link, Src = "clo")
+
+    result <- combine_link_tables(enhancer, promoter, closest)
+
+    expect_equal(nrow(result), 3L)
+    expect_equal(sort(result$Src), c("clo", "enh", "prom"))
+})
+
+
+test_that("packaged example links match the executable offline example", {
+    data("gp_example_inputs", package = "GPlinksR")
+    data("gp_example_links", package = "GPlinksR")
+    enh_file <- system.file(
+        "extdata", "gp_example_enhancer_links.tsv",
+        package = "GPlinksR", mustWork = TRUE
+    )
+    coords_file <- system.file(
+        "extdata", "gp_example_enhancer_coordinates.tsv",
+        package = "GPlinksR", mustWork = TRUE
+    )
+    gene_map <- data.frame(
+        hgnc_symbol = c("TTLL10", "SAMD11"),
+        hgnc_id = c("HGNC:26693", "HGNC:28706")
+    )
+
+    result <- build_gp_links(
+        pk = gp_example_inputs$pk[seq_len(3)],
+        gn = gp_example_inputs$gn[seq_len(4)],
+        enh_file = enh_file,
+        enh_coords_file = coords_file,
+        gene_map = gene_map
+    )
+
+    expect_equal(result, gp_example_links)
 })

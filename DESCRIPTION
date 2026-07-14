@@ -1,7 +1,7 @@
 Package: GPlinksR
 Type: Package
 Title: Building Gene-Peak Network for ATAC-RNA Integration
-Version: 0.99.1
+Version: 0.99.2
 Authors@R: c(
     person(
         "Xinran", "Wang",
@@ -24,12 +24,13 @@ URL: https://github.com/Corawang123/GPlinksR
 BugReports: https://github.com/Corawang123/GPlinksR/issues
 Encoding: UTF-8
 Depends: 
-    R (>= 4.4.0)
+    R (>= 4.6.0)
 Imports:
     BiocFileCache,
     data.table,
     GenomicRanges,
     GenomeInfoDb,
+    IRanges,
     methods,
     MultiAssayExperiment,
     S4Vectors,
@@ -44,7 +45,6 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 
     BiocStyle,
-    IRanges,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)

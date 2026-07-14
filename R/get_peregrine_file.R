@@ -14,10 +14,6 @@
 #'     readLines(f, n = 3)
 #' }
 get_peregrine_file <- function(version = 19) {
-    if (!requireNamespace("BiocFileCache", quietly = TRUE)) {
-        stop("Package 'BiocFileCache' must be installed.")
-    }
-
     if (!version %in% c(17, 18, 19)) {
         stop("Version must be 17, 18, or 19.")
     }
@@ -27,55 +23,49 @@ get_peregrine_file <- function(version = 19) {
         "enhancer_gene_link_", version, ".tsv"
     )
 
-    bfc <- BiocFileCache::BiocFileCache(ask = FALSE)
-
-    rname <- paste0("peregrine_v", version)
-
-    query <- BiocFileCache::bfcquery(
-        bfc,
-        rname,
-        field = "rname"
+    .get_cached_peregrine_file(
+        url = url,
+        rname = paste0("peregrine_v", version),
+        download_message = "Downloading PEREGRINE enhancer file...",
+        cached_message = "Using cached PEREGRINE file."
     )
-
-    if (nrow(query) == 0) {
-        message("Downloading PEREGRINE enhancer file...")
-
-        rid <- names(
-            BiocFileCache::bfcadd(
-                bfc,
-                rname = rname,
-                fpath = url
-            )
-        )
-    } else {
-        message("Using cached PEREGRINE file.")
-        rid <- query$rid[1]
-    }
-
-    BiocFileCache::bfcpath(bfc, rid)
 }
 
 
 .get_peregrine_enhancer_coords_file <- function() {
-    if (!requireNamespace("BiocFileCache", quietly = TRUE)) {
-        stop("Package 'BiocFileCache' must be installed.")
-    }
-
     url <- paste0(
         "https://data.pantherdb.org/ftp/peregrine_data/",
         "PEREGRINEenhancershg38"
     )
-    bfc <- BiocFileCache::BiocFileCache(ask = FALSE)
-    rname <- "peregrine_enhancers_hg38"
 
-    query <- BiocFileCache::bfcquery(
-        bfc,
-        rname,
-        field = "rname"
+    .get_cached_peregrine_file(
+        url = url,
+        rname = "peregrine_enhancers_hg38",
+        download_message = "Downloading PEREGRINE enhancer coordinates...",
+        cached_message = "Using cached PEREGRINE enhancer coordinates."
     )
+}
+
+
+.get_cached_peregrine_file <- function(
+    url,
+    rname,
+    download_message,
+    cached_message,
+    bfc = NULL
+) {
+    if (!requireNamespace("BiocFileCache", quietly = TRUE)) {
+        stop("Package 'BiocFileCache' must be installed.")
+    }
+
+    if (is.null(bfc)) {
+        bfc <- BiocFileCache::BiocFileCache(ask = FALSE)
+    }
+
+    query <- BiocFileCache::bfcquery(bfc, rname, field = "rname")
 
     if (nrow(query) == 0) {
-        message("Downloading PEREGRINE enhancer coordinates...")
+        message(download_message)
         rid <- names(
             BiocFileCache::bfcadd(
                 bfc,
@@ -84,7 +74,7 @@ get_peregrine_file <- function(version = 19) {
             )
         )
     } else {
-        message("Using cached PEREGRINE enhancer coordinates.")
+        message(cached_message)
         rid <- query$rid[1]
     }
 

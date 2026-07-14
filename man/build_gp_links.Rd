@@ -4,7 +4,15 @@
 \alias{build_gp_links}
 \title{Build Gene-Peak Network (Enhancer, Promoter, Closest)}
 \usage{
-build_gp_links(pk, gn, ver = 19, enh_file = NULL)
+build_gp_links(
+  pk,
+  gn,
+  ver = 19,
+  enh_file = NULL,
+  enh_coords_file = NULL,
+  gene_map = NULL,
+  mart = NULL
+)
 }
 \arguments{
 \item{pk}{Either:
@@ -14,29 +22,69 @@ build_gp_links(pk, gn, ver = 19, enh_file = NULL)
 ("chr1:1000-1200" style).}
 
 \item{gn}{Character vector of gene symbols
-(HGNC official symbols, e.g. "TP53", "FMNL2").}
+(HGNC official symbols, e.g. "TP53", "FMNL2"). Each input peak is linked
+to the nearest transcript TSS among these genes.}
 
 \item{ver}{Integer (17, 18, or 19) - PANTHER enhancer-gene link version.}
 
 \item{enh_file}{Optional local path to enhancer-gene link file (.tsv).}
+
+\item{enh_coords_file}{Optional local path to the corresponding PEREGRINE
+enhancer-coordinate file. The file must contain chromosome, start, end, and
+enhancer identifier columns without a header. If \code{NULL}, the hg38
+PEREGRINE coordinate file is downloaded or retrieved from cache.}
+
+\item{gene_map}{Optional data.frame with columns \code{hgnc_symbol} and
+\code{hgnc_id}. When supplied, this local mapping is used instead of querying
+BioMart.}
+
+\item{mart}{Optional \code{biomaRt::Mart} object used for gene identifier
+mapping. If \code{NULL}, the default Ensembl human genes mart is used. Supply
+an object created by \code{biomaRt::useEnsembl()} to select a mirror or custom
+host.}
 }
 \value{
-A data.frame with columns: Peak, Gene, Src.
-Closest-gene mappings are based on distance from each peak to gene TSS.
+A data.frame with columns: Peak, Gene, Src. Closest-gene mappings
+assign each peak center to its single nearest transcript TSS across the
+genes in \code{gn}. When a peak-gene pair has multiple evidence sources, each
+source is returned as a separate row.
 }
 \description{
 Build Gene-Peak Network (Enhancer, Promoter, Closest)
 }
 \examples{
 data("gp_example_inputs", package = "GPlinksR")
-data("gp_example_links", package = "GPlinksR")
 pk <- gp_example_inputs$pk[seq_len(3)]
 gn <- gp_example_inputs$gn[seq_len(4)]
 
-head(gp_example_links)
+enh_file <- system.file(
+    "extdata", "gp_example_enhancer_links.tsv",
+    package = "GPlinksR", mustWork = TRUE
+)
+enh_coords_file <- system.file(
+    "extdata", "gp_example_enhancer_coordinates.tsv",
+    package = "GPlinksR", mustWork = TRUE
+)
+gene_map <- data.frame(
+    hgnc_symbol = c("TTLL10", "SAMD11"),
+    hgnc_id = c("HGNC:26693", "HGNC:28706")
+)
+
+gp <- build_gp_links(
+    pk, gn,
+    enh_file = enh_file,
+    enh_coords_file = enh_coords_file,
+    gene_map = gene_map
+)
+gp
 
 if (interactive()) {
-    gp <- build_gp_links(pk, gn)
+    mirror_mart <- biomaRt::useEnsembl(
+        biomart = "genes",
+        dataset = "hsapiens_gene_ensembl",
+        mirror = "useast"
+    )
+    gp <- build_gp_links(pk, gn, mart = mirror_mart)
     head(gp)
 }
 }

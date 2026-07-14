@@ -1,9 +1,8 @@
 #' Example Link Table for the Packaged GPlinksR Demo Subset
 #'
-#' A precomputed example gene-peak link table corresponding to the curated
-#' leading entries in `gp_example_inputs`. The table includes enhancer-,
-#' promoter-, and closest-based links and is used in the vignette to display
-#' representative output without rerunning external downloads.
+#' A reference gene-peak link table corresponding to the leading entries in
+#' `gp_example_inputs`. The table contains the expected enhancer-, promoter-,
+#' and closest-based links from the package's executable offline example.
 #'
 #' @format A data.frame with 7 rows and 3 columns:
 #' \describe{

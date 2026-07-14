@@ -1,0 +1,11 @@
+The files gp_example_enhancer_links.tsv and
+gp_example_enhancer_coordinates.tsv contain two records selected from the
+PANTHER PEREGRINE version 19 enhancer-gene links and hg38 enhancer coordinates.
+
+Source files:
+https://data.pantherdb.org/ftp/peregrine_data/enhancer_gene_link_19.tsv
+https://data.pantherdb.org/ftp/peregrine_data/PEREGRINEenhancershg38
+
+The records overlap the first two peak coordinates in gp_example_inputs and
+link them to TTLL10 and SAMD11, respectively. They are included so package
+examples and vignettes can execute without network access.

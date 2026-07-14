@@ -37,6 +37,13 @@
 #' @param gene_col Optional `rowData()` column containing gene symbols.
 #' @param ver Integer (17, 18, or 19). PEREGRINE enhancer-gene link version.
 #' @param enh_file Optional local path to enhancer-gene link file (`.tsv`).
+#' @param enh_coords_file Optional local path to the corresponding PEREGRINE
+#'   enhancer-coordinate file passed to [build_gp_links()].
+#' @param gene_map Optional data.frame with columns `hgnc_symbol` and `hgnc_id`
+#'   passed to [build_gp_links()].
+#' @param mart Optional `biomaRt::Mart` object passed to [build_gp_links()].
+#'   Supply an object created with [biomaRt::useEnsembl()] to use an Ensembl
+#'   mirror or custom host.
 #'
 #' @return A data.frame with columns returned by [build_gp_links()].
 #' @export
@@ -47,7 +54,10 @@ build_gp_links_wrapper <- function(
     peak_col = NULL,
     gene_col = NULL,
     ver = 19,
-    enh_file = NULL
+    enh_file = NULL,
+    enh_coords_file = NULL,
+    gene_map = NULL,
+    mart = NULL
 ) {
     inputs <- .extract_wrapper_inputs(
         x = x,
@@ -61,7 +71,10 @@ build_gp_links_wrapper <- function(
         pk = inputs$pk,
         gn = inputs$gn,
         ver = ver,
-        enh_file = enh_file
+        enh_file = enh_file,
+        enh_coords_file = enh_coords_file,
+        gene_map = gene_map,
+        mart = mart
     )
 }
 
@@ -202,18 +215,52 @@ build_gp_links_wrapper <- function(
 }
 
 
+.clean_extracted_values <- function(values, error_message) {
+    values <- unique(stats::na.omit(as.character(values)))
+    values <- values[nzchar(values)]
+
+    if (length(values) == 0) {
+        stop(error_message)
+    }
+
+    values
+}
+
+
+.row_data_info <- function(x) {
+    rd <- tryCatch(
+        SummarizedExperiment::rowData(x),
+        error = function(e) NULL
+    )
+    rd_names <- if (is.null(rd)) character(0) else colnames(rd)
+    list(data = rd, names = rd_names)
+}
+
+
+.extract_row_data_column <- function(rd_info, column, argument) {
+    if (!column %in% rd_info$names) {
+        available_cols <- paste(rd_info$names, collapse = ", ")
+        msg <- paste0(
+            "'", argument, "' was not found in rowData(). Available columns: ",
+            available_cols
+        )
+        stop(msg)
+    }
+
+    as.character(rd_info$data[[column]])
+}
+
+
 .extract_peak_regions_wrapper <- function(x, peak_col = NULL) {
     pk <- .peak_regions_from_ranges(x)
     if (length(pk) == 0) {
         pk <- .peak_regions_from_metadata(x = x, peak_col = peak_col)
     }
 
-    pk <- unique(stats::na.omit(as.character(pk)))
-    pk <- pk[nzchar(pk)]
-
-    if (length(pk) == 0) {
-        stop("Could not extract peak coordinates from the supplied object.")
-    }
+    pk <- .clean_extracted_values(
+        pk,
+        "Could not extract peak coordinates from the supplied object."
+    )
 
     .validate_wrapper_peak_regions(pk)
     pk
@@ -241,22 +288,12 @@ build_gp_links_wrapper <- function(
 
 
 .peak_regions_from_metadata <- function(x, peak_col = NULL) {
-    rd <- tryCatch(
-        SummarizedExperiment::rowData(x),
-        error = function(e) NULL
-    )
-    rd_names <- if (is.null(rd)) character(0) else colnames(rd)
+    rd_info <- .row_data_info(x)
+    rd <- rd_info$data
+    rd_names <- rd_info$names
 
     if (!is.null(peak_col)) {
-        if (!peak_col %in% rd_names) {
-            available_cols <- paste(rd_names, collapse = ", ")
-            msg <- paste0(
-                "'peak_col' was not found in rowData(). Available columns: ",
-                available_cols
-            )
-            stop(msg)
-        }
-        return(as.character(rd[[peak_col]]))
+        return(.extract_row_data_column(rd_info, peak_col, "peak_col"))
     }
 
     if ("PeakRegion" %in% rd_names) {
@@ -272,27 +309,18 @@ build_gp_links_wrapper <- function(
 
 
 .validate_wrapper_peak_regions <- function(pk) {
-    is_valid <- grepl("^chr[0-9XYMT]+:[0-9]+-[0-9]+$", pk)
-    if (all(is_valid)) {
-        return(invisible(NULL))
-    }
-
-    bad <- pk[!is_valid][1]
-    msg <- paste0(
+    message_template <- paste0(
         "Extracted peak coordinates are not in 'chr:start-end' format. ",
-        "First bad value: ", bad
+        "First bad value: %s"
     )
-    stop(msg)
+    .validate_peak_format(pk, message_template)
 }
 
 
 .extract_gene_symbols_wrapper <- function(x, gene_col = NULL) {
-    rd <- tryCatch(
-        SummarizedExperiment::rowData(x),
-        error = function(e) NULL
-    )
-
-    rd_names <- if (is.null(rd)) character(0) else colnames(rd)
+    rd_info <- .row_data_info(x)
+    rd <- rd_info$data
+    rd_names <- rd_info$names
     candidate_cols <- c(
         "symbol",
         "gene_name",
@@ -302,16 +330,7 @@ build_gp_links_wrapper <- function(
     )
 
     if (!is.null(gene_col)) {
-        if (!gene_col %in% rd_names) {
-            available_cols <- paste(rd_names, collapse = ", ")
-            msg <- paste0(
-                "'gene_col' was not found in rowData(). Available columns: ",
-                available_cols
-            )
-            stop(msg)
-        }
-
-        gn <- as.character(rd[[gene_col]])
+        gn <- .extract_row_data_column(rd_info, gene_col, "gene_col")
     } else {
         matched_col <- candidate_cols[candidate_cols %in% rd_names][1]
 
@@ -322,12 +341,8 @@ build_gp_links_wrapper <- function(
         }
     }
 
-    gn <- unique(stats::na.omit(as.character(gn)))
-    gn <- gn[nzchar(gn)]
-
-    if (length(gn) == 0) {
-        stop("Could not extract gene symbols from the supplied object.")
-    }
-
-    gn
+    .clean_extracted_values(
+        gn,
+        "Could not extract gene symbols from the supplied object."
+    )
 }

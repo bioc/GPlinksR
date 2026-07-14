@@ -9,7 +9,10 @@ build_gp_links_wrapper(
     peak_col = NULL,
     gene_col = NULL,
     ver = 19,
-    enh_file = NULL
+    enh_file = NULL,
+    enh_coords_file = NULL,
+    gene_map = NULL,
+    mart = NULL
 )
 }
 \arguments{
@@ -32,6 +35,16 @@ experiment is used for genes.}
 \item{ver}{Integer (17, 18, or 19). PEREGRINE enhancer-gene link version.}
 
 \item{enh_file}{Optional local path to enhancer-gene link file (\code{.tsv}).}
+
+\item{enh_coords_file}{Optional local path to the corresponding PEREGRINE
+enhancer-coordinate file passed to \code{build_gp_links()}.}
+
+\item{gene_map}{Optional data.frame with columns \code{hgnc_symbol} and
+\code{hgnc_id} passed to \code{build_gp_links()}.}
+
+\item{mart}{Optional \code{biomaRt::Mart} object passed to
+\code{build_gp_links()}. Supply an object created with
+\code{biomaRt::useEnsembl()} to use an Ensembl mirror or custom host.}
 }
 \value{
 A data.frame with columns returned by \code{build_gp_links()}.

@@ -1,3 +1,47 @@
+CHANGES IN VERSION 0.99.2
+
+NEW FEATURES
+
+    o Added optional mart, gene_map, and enhancer-coordinate arguments so
+      users can select an Ensembl mirror or provide local mapping resources.
+
+    o Added small, package-installed PEREGRINE example files for deterministic
+      offline execution of build_gp_links().
+
+IMPROVEMENTS
+
+    o Updated the minimum R version requirement to R 4.6.0.
+
+    o Replaced the hard-coded chromosome list with
+      GenomeInfoDb::standardChromosomes() for human sequence validation.
+
+    o Added an explicit GenomicRanges import, declared IRanges as a runtime
+      dependency, and refactored repeated input, cache, rowData, and
+      peak-validation code into shared internal helpers.
+
+    o Split long enhancer-building routines into focused internal helpers and
+      normalized R source indentation to four-space multiples.
+
+    o Avoided external chromosome-style lookups when aligning human sequence
+      levels from EnsDb.Hsapiens.v86 with UCSC-style peak coordinates.
+
+DOCUMENTATION
+
+    o Added a package-level help page.
+
+    o Added BiocManager installation instructions and executable, offline
+      build_gp_links() examples to the vignette and function help page.
+
+    o Documented the KPMP-derived example inputs and the source of the bundled
+      PEREGRINE example records.
+
+TESTS
+
+    o Added regression tests for standard chromosomes, local BioMart mapping,
+      local enhancer coordinates, shared helpers, sequence-level handling,
+      and packaged example consistency.
+
+
 CHANGES IN VERSION 0.99.0
 
 NEW FEATURES

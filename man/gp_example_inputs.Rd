@@ -12,10 +12,9 @@ A list with two elements:
 }
 \description{
 A small example dataset for demonstrating \code{GPlinksR} workflows.
-The object contains 300 peak coordinates and 100 gene symbols suitable for
-examples and vignettes. The first few entries are curated so that the
-vignette examples produce enhancer-, promoter-, and closest-based links from
-the packaged data.
+The object contains 300 peak coordinates and 100 gene symbols selected from a
+KPMP-derived kidney single-cell analysis. The first few entries yield
+enhancer-, promoter-, and closest-based links in the executable examples.
 }
 \usage{data(gp_example_inputs)}
 \examples{

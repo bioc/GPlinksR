@@ -1,5 +1,5 @@
 ---
-title: "GPlinksR: Building Gene-Peak Links from Simulated Single-Cell Inputs"
+title: "GPlinksR: Building Gene-Peak Links from Example Single-Cell Inputs"
 author: "Xinran Wang, Kelly Street, Huaiyu Mi, and Bryan Queme"
 date: "`r Sys.Date()`"
 bibliography: bibFile.bib
@@ -7,7 +7,7 @@ output:
     BiocStyle::html_document:
         toc: true
 vignette: >
-    %\VignetteIndexEntry{GPlinksR: Gene-Peak Links from Simulated Inputs}
+    %\VignetteIndexEntry{GPlinksR: Gene-Peak Links from Example Inputs}
     %\VignetteEngine{knitr::rmarkdown}
     %\VignetteEncoding{UTF-8}
 ---
@@ -33,14 +33,26 @@ extract these inputs from common Bioconductor containers such as
 `SingleCellExperiment` [@SingleCellExperiment] and
 `MultiAssayExperiment` [@MultiAssayExperiment].
 
-This vignette uses a small built-in example dataset to demonstrate how to
-prepare inputs, how to run the main function, and how to use the wrapper when
-your data are already stored in Bioconductor containers.
+This vignette uses a small built-in example selected from a KPMP-derived kidney
+single-cell analysis. It demonstrates how to prepare real peak and gene inputs,
+run the main function, and use the wrapper when data are already stored in
+Bioconductor containers.
 
 If you are running these chunks manually from the package source directory
 rather than knitting the vignette, load the current source package first with
 `devtools::load_all(".")` so that you use the local development version rather
 than an older installed copy.
+
+# Installation
+
+Install `GPlinksR` from Bioconductor with `BiocManager`:
+
+```{r installation, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+}
+BiocManager::install("GPlinksR")
+```
 
 # Overview
 
@@ -53,14 +65,13 @@ The core function in `GPlinksR` is `build_gp_links()`. It expects:
 For users working with single-cell analysis objects, `build_gp_links_wrapper()`
 can extract these inputs automatically and pass them to `build_gp_links()`.
 
-# Minimal Example with Peak and Gene Vectors
+# Minimal Example with Real Peak and Gene Vectors
 
 We begin with the package example dataset, which contains 300 peak coordinates
-and 100 gene symbols prepared for demonstration purposes.
+and 100 gene symbols selected from a KPMP-derived analysis.
 
-```{r simulated-inputs}
+```{r example-inputs}
 data("gp_example_inputs", package = "GPlinksR")
-data("gp_example_links", package = "GPlinksR")
 
 pk <- gp_example_inputs$pk
 gn <- gp_example_inputs$gn
@@ -69,9 +80,10 @@ length(pk)
 length(gn)
 ```
 
-For the executable examples below, we use a small deterministic subset of the
-packaged data that is arranged to yield enhancer-, promoter-, and closest-based
-links.
+For the executable examples below, we use the first three peaks and four genes.
+Two small files installed with the package contain the corresponding real
+PEREGRINE version 19 enhancer links and hg38 enhancer coordinates. A local HGNC
+mapping avoids a BioMart network request while the vignette is built.
 
 ```{r demo-subset}
 pk_demo <- pk[seq_len(3)]
@@ -81,18 +93,31 @@ pk_demo
 gn_demo
 ```
 
-At this point, the main function can be called directly:
+The main function is called directly below. This chunk is evaluated during the
+vignette build and prints the result produced by `build_gp_links()`.
 
-```{r direct-run, eval=FALSE}
-gp <- build_gp_links(pk = pk_demo, gn = gn_demo)
-head(gp)
-```
+```{r direct-run}
+example_enh_file <- system.file(
+    "extdata", "gp_example_enhancer_links.tsv",
+    package = "GPlinksR", mustWork = TRUE
+)
+example_coords_file <- system.file(
+    "extdata", "gp_example_enhancer_coordinates.tsv",
+    package = "GPlinksR", mustWork = TRUE
+)
+example_gene_map <- data.frame(
+    hgnc_symbol = c("TTLL10", "SAMD11"),
+    hgnc_id = c("HGNC:26693", "HGNC:28706")
+)
 
-For the packaged example subset, the resulting link table begins as follows:
-
-```{r direct-output}
-gp <- gp_example_links
-head(gp)
+gp <- build_gp_links(
+    pk = pk_demo,
+    gn = gn_demo,
+    enh_file = example_enh_file,
+    enh_coords_file = example_coords_file,
+    gene_map = example_gene_map
+)
+gp
 ```
 
 If you want to use a previously cached PEREGRINE file, you may first download
@@ -121,16 +146,15 @@ peak_df
 
 This can be supplied directly to `build_gp_links()`:
 
-```{r data-frame-run, eval=FALSE}
-gp <- build_gp_links(pk = peak_df, gn = gn_demo)
-head(gp)
-```
-
-This data-frame representation yields the same example link table:
-
-```{r data-frame-output}
-gp <- gp_example_links
-head(gp)
+```{r data-frame-run}
+gp_from_df <- build_gp_links(
+    pk = peak_df,
+    gn = gn_demo,
+    enh_file = example_enh_file,
+    enh_coords_file = example_coords_file,
+    gene_map = example_gene_map
+)
+identical(gp_from_df, gp)
 ```
 
 # Wrapper Workflow for MultiAssayExperiment
@@ -193,22 +217,18 @@ if (requireNamespace("MultiAssayExperiment", quietly = TRUE) &&
 
 Once the object has been created, the wrapper call is concise:
 
-```{r mae-run, eval=FALSE}
-gp <- build_gp_links_wrapper(
+```{r mae-run}
+gp_from_mae <- build_gp_links_wrapper(
     x = mae,
     peak_experiment = "ATAC",
     gene_experiment = "RNA",
-    gene_col = "symbol"
+    gene_col = "symbol",
+    enh_file = example_enh_file,
+    enh_coords_file = example_coords_file,
+    gene_map = example_gene_map
 )
 
-head(gp)
-```
-
-For this packaged example setup, the wrapper returns the same link table:
-
-```{r mae-output}
-gp <- gp_example_links
-head(gp)
+head(gp_from_mae)
 ```
 
 # Wrapper Workflow for SingleCellExperiment
@@ -251,22 +271,17 @@ if (requireNamespace("SingleCellExperiment", quietly = TRUE) &&
 The wrapper then extracts genes from the main object and peaks from the named
 alternative experiment:
 
-```{r sce-run, eval=FALSE}
-gp <- build_gp_links_wrapper(
+```{r sce-run}
+gp_from_sce <- build_gp_links_wrapper(
     x = sce,
     peak_experiment = "ATAC",
-    gene_col = "symbol"
+    gene_col = "symbol",
+    enh_file = example_enh_file,
+    enh_coords_file = example_coords_file,
+    gene_map = example_gene_map
 )
 
-head(gp)
-```
-
-For this packaged example setup, the `SingleCellExperiment` wrapper also
-returns the same example link table:
-
-```{r sce-output}
-gp <- gp_example_links
-head(gp)
+head(gp_from_sce)
 ```
 
 # Input Expectations

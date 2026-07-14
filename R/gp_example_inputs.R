@@ -1,9 +1,9 @@
 #' Example Gene and Peak Inputs for GPlinksR
 #'
 #' A small example dataset for demonstrating `GPlinksR` workflows. The object
-#' contains 300 peak coordinates and 100 gene symbols suitable for examples and
-#' vignettes. The first few entries are curated so that the vignette examples
-#' produce enhancer-, promoter-, and closest-based links from the packaged data.
+#' contains 300 peak coordinates and 100 gene symbols selected from a
+#' KPMP-derived kidney single-cell analysis. The first few entries yield
+#' enhancer-, promoter-, and closest-based links in the executable examples.
 #'
 #' @format A list with two elements:
 #' \describe{
