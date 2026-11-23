@@ -1,7 +1,7 @@
 Package: GPlinksR
 Type: Package
 Title: Building Gene-Peak Network for ATAC-RNA Integration
-Version: 1.0.0
+Version: 1.1.0
 Authors@R: c(
     person(
         "Xinran", "Wang",
